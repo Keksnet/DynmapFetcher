@@ -64,6 +64,9 @@ fun main(args: Array<String>) {
         Files.writeString(Paths.get("config.yml"), Main::class.java.getResourceAsStream("/config.yml").bufferedReader().readText())
     }
     localConfig.load(Paths.get("config.json"))
-    val url = if(args.size == 1) args[0] else localConfig.getConfig()["fetcher"].asJsonObject["url"].asString
+    var url = (if(args.size == 1) args[0] else localConfig.getConfig()["fetcher"].asJsonObject["url"].asString)
+    if(url.endsWith("/")) {
+        url = url.substring(0, url.length - 1)
+    }
     Main(url, localConfig)
 }
