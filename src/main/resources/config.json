@@ -1,0 +1,25 @@
+{
+  "telnet": {
+    "port": 1276
+  },
+  "web": {
+    "port": 8787,
+    "auth": true,
+    "accounts": {
+      "Neo8": {
+        "password": "test"
+      }
+    }
+  },
+  "fetcher": {
+    "fetchTiles": true,
+    "url": "http://localhost:8123/",
+    "fetchingConfig": {
+      "override": false,
+      "interval": 60
+    },
+    "retryTime": 5,
+    "checkPlayersTime": 5
+  },
+  "debug": false
+}
