@@ -21,5 +21,17 @@
     "retryTime": 5,
     "checkPlayersTime": 5
   },
-  "debug": false
+  "debug": false,
+  "sql": {
+    "enabled": true,
+    "replaceFiles": false,
+    "tempOnly": false,
+    "file": "mapData.db"
+  },
+  "mongodb": {
+    "enabled": true,
+    "uri": "mongodb://localhost:27017/",
+    "database": "Dynmap",
+    "collection": "MapData"
+  }
 }

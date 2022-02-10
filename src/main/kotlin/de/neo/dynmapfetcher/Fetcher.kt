@@ -1,6 +1,7 @@
 package de.neo.dynmapfetcher
 
 import com.google.gson.*
+import org.bson.Document
 import java.io.File
 import java.io.IOException
 import java.io.OutputStream
@@ -12,9 +13,10 @@ import java.nio.file.Path
 import java.util.logging.Logger
 import javax.imageio.ImageIO
 import javax.net.ssl.HttpsURLConnection
+import kotlin.math.log
 import kotlin.math.roundToInt
 
-class Fetcher(private val urlString: String, private val localFetcherConfig: JsonObject) : Runnable {
+class Fetcher(private val urlString: String, private val localFetcherConfig: JsonObject, private val localConfig: JsonObject) : Runnable {
 
     private val time: Long
 
@@ -22,13 +24,13 @@ class Fetcher(private val urlString: String, private val localFetcherConfig: Jso
     private val fileBuffer: HashMap<String, String> = HashMap()
     private var lastMap = StringBuffer()
     private var bufferMaps = false
-    private val debug = localFetcherConfig["debug"].asBoolean
+    private val debug = localConfig["debug"].asBoolean
     private val shouldFetchTiles = localFetcherConfig["fetchTiles"].asBoolean
     private val updateTime =
         if(localFetcherConfig["fetchingConfig"].asJsonObject["override"].asBoolean)
-            localFetcherConfig["fetchingConfig"].asJsonObject["time"].asLong
+            localFetcherConfig["fetchingConfig"].asJsonObject["interval"].asLong
         else
-            localFetcherConfig["fetchingConfig"].asJsonObject["time"].asLong
+            Main.getInstance().getConfig().getConfig()["updaterate"].asDouble.toLong()
 
     init {
         time = System.currentTimeMillis()
@@ -56,7 +58,57 @@ class Fetcher(private val urlString: String, private val localFetcherConfig: Jso
                 lastMap.delete(0, lastMap.length)
                 lastMap.append(json)
                 fileName = "${System.currentTimeMillis()/1000}.json"
-                Files.writeString(Path.of("mapData", fileName), json)
+
+                if(!localConfig["sql"].asJsonObject["replaceFiles"].asBoolean) {
+                    Files.writeString(Path.of("mapData", fileName), json)
+                }
+
+                try {
+                    Thread {
+                        Main.getInstance().getMongoCollection().insertOne(Document.parse(json))
+                    }.start()
+                }catch (_: Exception) { }
+
+                if(localConfig["mongodb"].asJsonObject["enabled"].asBoolean) {
+                    try {
+                        Thread {
+                            Main.getInstance().getMongoCollection().insertOne(Document.parse(json))
+                        }.start()
+                    }catch (_: Exception) {
+                        if(localConfig["sql"].asJsonObject["tempOnly"].asBoolean) {
+                            try {
+                                Thread {
+                                    Main.getInstance().getDatabaseConnection().prepareStatement("INSERT INTO mapData (json) VALUES (?)").apply {
+                                        setString(1, json)
+                                        execute()
+                                        close()
+                                    }
+                                }.start()
+                            }catch (_: Exception) {
+                                logger.warning("Could not insert into database!")
+                                logger.warning("Writing to temp file!")
+                                Files.writeString(Path.of("mapData", fileName), json)
+                            }
+                        }
+                    }
+                }
+
+                if(!localConfig["sql"].asJsonObject["tempOnly"].asBoolean) {
+                    try {
+                        Thread {
+                            Main.getInstance().getDatabaseConnection().prepareStatement("INSERT INTO mapData (json) VALUES (?)").apply {
+                                setString(1, json)
+                                execute()
+                                close()
+                            }
+                        }.start()
+                    }catch (_: Exception) {
+                        logger.warning("Could not insert into database!")
+                        logger.warning("Writing to temp file!")
+                        Files.writeString(Path.of("mapData", fileName), json)
+                    }
+                }
+
                 if(bufferMaps) {
                     fileBuffer[fileName] = json
                 }
